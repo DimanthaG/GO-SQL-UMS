@@ -4,8 +4,9 @@ import (
 	"log"
 	"net/http"
 	"user-management-system/api"
-	"user-management-system/pkg/db"
 	"user-management-system/config"
+	"user-management-system/pkg/db"
+	"user-management-system/pkg/handlers"
 )
 
 func main() {
@@ -13,15 +14,16 @@ func main() {
 	config.LoadEnv()
 
 	// Initialize database
-	db.InitDB()
+	database := db.InitDB()
 
 	// Run database migrations
-	db.RunMigrations()
+	db.RunMigrations(database)
 
-	// Setup routes
+	// Pass the database instance to handlers
+	handlers.InitHandlers(database)
+
+	// Set up routes and start server
 	router := api.SetupRoutes()
-
-	// Start the server
 	log.Println("Server running on port 8080")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }

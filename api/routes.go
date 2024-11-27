@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+	"user-management-system/pkg/handlers"
+	"user-management-system/pkg/middleware"
 
 	"github.com/gorilla/mux"
 )
@@ -9,12 +11,12 @@ import (
 func SetupRoutes() *mux.Router {
 	router := mux.NewRouter()
 
-	// Example route
-	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Welcome to User Management System"))
-	}).Methods("GET")
+	// Apply CORS middleware
+	router.Use(middleware.CORS)
 
-	// Add other routes here
+	router.HandleFunc("/signup", handlers.SignUp).Methods(http.MethodPost)
+	router.HandleFunc("/signin", handlers.SignIn).Methods(http.MethodPost)
+	// Add other routes here...
+
 	return router
 }

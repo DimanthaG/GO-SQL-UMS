@@ -8,7 +8,7 @@ const Signup = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    axios.post('/signup', { email, password })
+    axios.post('http://localhost:8080/signup', { email, password })
       .then((response) => {
         setMessage('Signup successful!');
       })

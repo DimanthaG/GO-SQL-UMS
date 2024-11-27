@@ -1,40 +1,33 @@
 # Stage 1: Build React frontend
-FROM node:16 AS frontend-builder
+FROM --platform=linux/arm64 node:16 AS frontend-builder
 WORKDIR /app
-# Copy package.json and package-lock.json for dependency installation
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm install
-# Copy the rest of the frontend source files
 COPY frontend/ .
-# Build the React frontend
 RUN npm run build
 
 # Stage 2: Build Go backend
-FROM golang:1.20 AS backend-builder
+FROM --platform=linux/arm64 golang:1.20 AS backend-builder
 WORKDIR /app
-# Copy Go module files and download dependencies
 COPY go.mod go.sum ./
 RUN go mod download
-# Copy the backend source files
 COPY . .
-# Build the Go application
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o main ./cmd
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o main ./cmd
 
 # Stage 3: Final container
-FROM alpine:3.18
+FROM --platform=linux/arm64 alpine:latest
 WORKDIR /root/
-# Install necessary tools
-RUN apk --no-cache add ca-certificates bash
-# Copy the Go binary from the backend build stage
+# Copy the Go binary
 COPY --from=backend-builder /app/main .
-# Copy the frontend static files
+# Copy frontend static files
 COPY --from=frontend-builder /app/build ./frontend/build
-# Copy the wait-for-it.sh script to wait for the database
+RUN apk --no-cache add ca-certificates bash
+# Add wait-for-it.sh script
 COPY wait-for-it.sh /usr/local/bin/wait-for-it.sh
 RUN chmod +x /usr/local/bin/wait-for-it.sh
 
-# Serve frontend files with Go backend (configure in backend code)
+# Expose the Go backend port
 EXPOSE 8080
 
-# Start the application and wait for the database to be ready
+# Run the backend and wait for the database
 CMD ["sh", "-c", "wait-for-it.sh db:3306 -- ./main"]

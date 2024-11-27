@@ -8,12 +8,29 @@ const Signup = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    // Basic form validation
+    if (!email || !password) {
+      setMessage('Email and password are required.');
+      return;
+    }
+
+    // Make a POST request to the signup endpoint
     axios.post('http://localhost:8080/signup', { email, password })
       .then((response) => {
         setMessage('Signup successful!');
       })
       .catch((error) => {
-        setMessage('Signup failed!');
+        if (error.response) {
+          // Handle server-side errors
+          setMessage(`Signup failed: ${error.response.data}`);
+        } else if (error.request) {
+          // Handle cases where the request was made but no response was received
+          setMessage('Signup failed: No response from the server.');
+        } else {
+          // Handle other types of errors
+          setMessage(`Signup failed: ${error.message}`);
+        }
       });
   };
 
@@ -26,12 +43,14 @@ const Signup = () => {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          required
         />
         <input
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          required
         />
         <button type="submit">Signup</button>
       </form>

@@ -1,20 +1,33 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    axios.post('/login', { email, password })
-      .then((response) => {
-        setMessage('Login successful!');
-      })
-      .catch((error) => {
-        setMessage('Login failed!');
+    try {
+      const response = await fetch('/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }), // Updated to use email
       });
+
+      if (response.ok) {
+        const data = await response.json();
+        setMessage('Login successful');
+        console.log('Response:', data);
+        // Additional actions on successful login
+      } else {
+        setMessage('Login failed');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setMessage('An error occurred. Please try again.');
+    }
   };
 
   return (

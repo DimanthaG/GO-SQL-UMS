@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -7,26 +8,29 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const response = await fetch('/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }), // Updated to use email
-      });
 
-      if (response.ok) {
-        const data = await response.json();
-        setMessage('Login successful');
-        console.log('Response:', data);
-        // Additional actions on successful login
-      } else {
-        setMessage('Login failed');
-      }
+    if (!email || !password) {
+      setMessage('Email and password are required.');
+      return;
+    }
+
+    try {
+      const response = await axios.post('http://localhost:8080/login', {
+        email,
+        password,
+      });
+      setMessage('Login successful!');
     } catch (error) {
-      console.error('Error:', error);
-      setMessage('An error occurred. Please try again.');
+      if (error.response) {
+        // Backend returned an error response
+        setMessage(`Login failed: ${error.response.data}`);
+      } else if (error.request) {
+        // Request was sent but no response
+        setMessage('Login failed: No response from the server.');
+      } else {
+        // Something else happened
+        setMessage(`Login failed: ${error.message}`);
+      }
     }
   };
 

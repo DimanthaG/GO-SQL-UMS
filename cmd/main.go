@@ -1,11 +1,13 @@
 package main
 
 import (
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 	"os"
 	"os/signal"
@@ -144,6 +146,109 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "Login successful")
 }
 
+// GenerateRandomPassword generates a random password of a given length
+func GenerateRandomPassword(length int) (string, error) {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	password := make([]byte, length)
+	for i := range password {
+		random, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			return "", err
+		}
+		password[i] = charset[random.Int64()]
+	}
+	return string(password), nil
+}
+
+// VerifyEmailHandler - verifies if the email exists in the database
+func verifyEmailHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request struct {
+		Email string `json:"email"`
+	}
+
+	// Parse the request body
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil || request.Email == "" {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the email exists in the database
+	var email string
+	err = db.QueryRow("SELECT email FROM users WHERE email = ?", request.Email).Scan(&email)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Email not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "Email verified successfully")
+}
+
+// Reset Password Handler
+func resetPasswordHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request struct {
+		Email           string `json:"email"`
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil || request.Email == "" || request.CurrentPassword == "" || request.NewPassword == "" {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
+	}
+
+	var storedHash string
+	err = db.QueryRow("SELECT password_hash FROM users WHERE email = ?", request.Email).Scan(&storedHash)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Email not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Validate current password
+	err = bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(request.CurrentPassword))
+	if err != nil {
+		http.Error(w, "Invalid current password", http.StatusUnauthorized)
+		return
+	}
+
+	// Hash the new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(request.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "Error hashing new password", http.StatusInternalServerError)
+		return
+	}
+
+	// Update the password in the database
+	_, err = db.Exec("UPDATE users SET password_hash = ? WHERE email = ?", hashedPassword, request.Email)
+	if err != nil {
+		http.Error(w, "Failed to update password", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "Password updated successfully")
+}
+
 // Enable CORS middleware
 func enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -165,6 +270,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/signup", signupHandler)
 	mux.HandleFunc("/login", loginHandler)
+	mux.HandleFunc("/verify-email", verifyEmailHandler)
+	mux.HandleFunc("/reset-password", resetPasswordHandler)
 
 	server := &http.Server{Addr: ":8080", Handler: enableCORS(mux)}
 

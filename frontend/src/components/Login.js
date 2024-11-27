@@ -1,43 +1,35 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import './styles.css';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
 
-  const handleSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-
-    if (!email || !password) {
-      setMessage('Email and password are required.');
-      return;
-    }
-
     try {
-      const response = await axios.post('http://localhost:8080/login', {
-        email,
-        password,
+      const response = await fetch('/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
       });
-      setMessage('Login successful!');
-    } catch (error) {
-      if (error.response) {
-        // Backend returned an error response
-        setMessage(`Login failed: ${error.response.data}`);
-      } else if (error.request) {
-        // Request was sent but no response
-        setMessage('Login failed: No response from the server.');
+      if (response.ok) {
+        setMessage('Login successful!');
       } else {
-        // Something else happened
-        setMessage(`Login failed: ${error.message}`);
+        setMessage('Login failed!');
       }
+    } catch (error) {
+      setMessage('An error occurred.');
     }
   };
 
   return (
     <div>
       <h2>Login</h2>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleLogin}>
         <input
           type="email"
           placeholder="Email"

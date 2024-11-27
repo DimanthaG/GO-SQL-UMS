@@ -1,26 +1,33 @@
 package email
 
 import (
+	"errors"
 	"log"
 	"net/smtp"
+	"os"
 )
 
-func SendEmail(to, subject, body string) {
-	from := "your_email@example.com"  // Replace with your email
-	password := "your_email_password" // Replace with your email password
+// SendEmail sends an email to the specified recipient
+func SendEmail(to, subject, body string) error {
+	from := os.Getenv("EMAIL_FROM")
+	password := os.Getenv("EMAIL_PASSWORD")
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPort := os.Getenv("SMTP_PORT")
 
-	smtpHost := "smtp.example.com" // Replace with your SMTP server
-	smtpPort := "587"
-
-	message := []byte("Subject: " + subject + "\r\n\r\n" + body)
-
-	auth := smtp.PlainAuth("", from, password, smtpHost)
-
-	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, message)
-	if err != nil {
-		log.Printf("Failed to send email: %v", err)
-		return
+	if from == "" || password == "" || smtpHost == "" || smtpPort == "" {
+		return errors.New("email environment variables not set")
 	}
 
-	log.Println("Email sent successfully to", to)
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+	msg := []byte("To: " + to + "\r\n" +
+		"Subject: " + subject + "\r\n" +
+		"\r\n" +
+		body + "\r\n")
+
+	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, msg)
+	if err != nil {
+		log.Printf("Failed to send email: %v", err)
+		return err
+	}
+	return nil
 }

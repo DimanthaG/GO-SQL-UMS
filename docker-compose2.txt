@@ -1,0 +1,51 @@
+services:
+  app:
+    image: dimanthag/go-sql-ums-app:latest
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: app_user
+      DB_PASSWORD: app_password
+      DB_NAME: user_management
+      MYSQL_DSN: app_user:app_password@tcp(db:3306)/user_management
+    command: >
+      sh -c "wait-for-it.sh db:3306 -- ./main"
+    expose:
+      - "8080"
+    restart: always
+
+  frontend:
+    image: dimanthag/go-sql-ums-frontend:latest
+    depends_on:
+      - app
+    restart: always
+
+  nginx:
+    image: dimanthag/go-sql-ums-nginx:latest
+    depends_on:
+      - app
+      - frontend
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./frontend/build:/usr/share/nginx/html
+    ports:
+      - "80:80"
+    restart: always
+
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: user_management
+      MYSQL_USER: app_user
+      MYSQL_PASSWORD: app_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: always
+
+volumes:
+  db_data:

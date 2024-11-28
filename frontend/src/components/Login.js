@@ -72,7 +72,7 @@ const Login = () => {
             required
           />
           <button type="submit">Login</button>
-          <p onClick={() => setShowForgotPassword(true)} className="forgot-password-link">
+          <p onClick={() => navigate('/reset-password')} className="forgot-password-link">
             Forgot Password?
           </p>
           <div>

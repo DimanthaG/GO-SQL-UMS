@@ -13,12 +13,15 @@ import (
 	"os/signal"
 	"regexp"
 	"syscall"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var db *sql.DB
+var jwtKey = []byte("your_secret_key") // Replace with a strong secret key
 
 // Initialize the database connection
 func initDB() {
@@ -141,9 +144,60 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate a JWT token
+	expirationTime := time.Now().Add(30 * time.Minute) // Token expires in 30 minutes
+	claims := &jwt.MapClaims{
+		"email": creds.Email,
+		"exp":   expirationTime.Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtKey)
+	if err != nil {
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Set token as an HTTP-only cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    tokenString,
+		Expires:  expirationTime,
+		HttpOnly: true, // Prevents access to the cookie via JavaScript
+	})
+
 	log.Printf("User %s logged in successfully\n", creds.Email)
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "Login successful")
+}
+func authenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check for the token cookie
+		cookie, err := r.Cookie("token")
+		if err != nil {
+			if err == http.ErrNoCookie {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		// Parse and validate the token
+		tokenStr := cookie.Value
+		claims := &jwt.MapClaims{}
+		tkn, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+			return jwtKey, nil
+		})
+
+		if err != nil || !tkn.Valid {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Proceed to the next handler if the token is valid
+		next.ServeHTTP(w, r)
+	})
 }
 
 // GenerateRandomPassword generates a random password of a given length
@@ -159,8 +213,24 @@ func GenerateRandomPassword(length int) (string, error) {
 	}
 	return string(password), nil
 }
+func logoutHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-// VerifyEmailHandler - verifies if the email exists in the database
+	// Clear the token cookie by setting it to an empty value with an expired date
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    "",
+		Expires:  time.Unix(0, 0), // Expired date
+		HttpOnly: true,
+	})
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "Logout successful")
+}
+
 func verifyEmailHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -175,6 +245,7 @@ func verifyEmailHandler(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil || request.Email == "" {
 		http.Error(w, "Invalid input", http.StatusBadRequest)
+		log.Printf("Invalid input: %v", err)
 		return
 	}
 
@@ -184,12 +255,15 @@ func verifyEmailHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.Error(w, "Email not found", http.StatusNotFound)
+			log.Printf("Email not found: %s", request.Email)
 		} else {
 			http.Error(w, "Server error", http.StatusInternalServerError)
+			log.Printf("Database error: %v", err)
 		}
 		return
 	}
 
+	log.Printf("Email verified: %s", email)
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "Email verified successfully")
 }
@@ -207,8 +281,10 @@ func resetPasswordHandler(w http.ResponseWriter, r *http.Request) {
 		NewPassword     string `json:"newPassword"`
 	}
 
+	// Decode and validate the request body
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil || request.Email == "" || request.CurrentPassword == "" || request.NewPassword == "" {
+		log.Println("Invalid input: ", err)
 		http.Error(w, "Invalid input", http.StatusBadRequest)
 		return
 	}
@@ -217,23 +293,34 @@ func resetPasswordHandler(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow("SELECT password_hash FROM users WHERE email = ?", request.Email).Scan(&storedHash)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			log.Printf("Email not found: %s\n", request.Email)
 			http.Error(w, "Email not found", http.StatusNotFound)
 		} else {
+			log.Printf("Database error for email %s: %v\n", request.Email, err)
 			http.Error(w, "Server error", http.StatusInternalServerError)
 		}
 		return
 	}
 
-	// Validate current password
+	// Validate the current password
 	err = bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(request.CurrentPassword))
 	if err != nil {
+		log.Printf("Invalid current password for email: %s\n", request.Email)
 		http.Error(w, "Invalid current password", http.StatusUnauthorized)
+		return
+	}
+
+	// Check the strength of the new password
+	if len(request.NewPassword) < 8 {
+		log.Printf("Weak password provided for email: %s\n", request.Email)
+		http.Error(w, "New password must be at least 8 characters long", http.StatusBadRequest)
 		return
 	}
 
 	// Hash the new password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(request.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
+		log.Printf("Error hashing new password for email %s: %v\n", request.Email, err)
 		http.Error(w, "Error hashing new password", http.StatusInternalServerError)
 		return
 	}
@@ -241,12 +328,18 @@ func resetPasswordHandler(w http.ResponseWriter, r *http.Request) {
 	// Update the password in the database
 	_, err = db.Exec("UPDATE users SET password_hash = ? WHERE email = ?", hashedPassword, request.Email)
 	if err != nil {
+		log.Printf("Failed to update password for email %s: %v\n", request.Email, err)
 		http.Error(w, "Failed to update password", http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("Password updated successfully for email: %s\n", request.Email)
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "Password updated successfully")
+}
+func videoHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "Welcome to the video page!")
 }
 
 // Enable CORS middleware
@@ -272,6 +365,8 @@ func main() {
 	mux.HandleFunc("/login", loginHandler)
 	mux.HandleFunc("/verify-email", verifyEmailHandler)
 	mux.HandleFunc("/reset-password", resetPasswordHandler)
+	mux.Handle("/video", authenticate(http.HandlerFunc(videoHandler)))
+	mux.HandleFunc("/logout", logoutHandler)
 
 	server := &http.Server{Addr: ":8080", Handler: enableCORS(mux)}
 

@@ -114,4 +114,50 @@ body {
     margin-top: 10px;
     color: #333;
   }
+  .reset-password-container {
+    max-width: 400px;
+    margin: 50px auto;
+    padding: 20px;
+    background: #f9f9f9;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+  }
+  
+  .reset-password-container h2 {
+    margin-bottom: 20px;
+  }
+  
+  .reset-password-container form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .reset-password-container input {
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+  }
+  
+  .reset-password-container button {
+    padding: 10px;
+    font-size: 16px;
+    background: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  
+  .reset-password-container button:hover {
+    background: #0056b3;
+  }
+  
+  .message {
+    margin-top: 10px;
+    font-size: 14px;
+    color: red;
+  }
   

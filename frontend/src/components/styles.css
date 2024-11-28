@@ -10,12 +10,11 @@ body {
   }
   
   form {
-    background: #fff;
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    width: 300px;
     text-align: center;
+
   }
   
   input {
@@ -57,7 +56,7 @@ body {
     background-color: #0056b3;
   }
   h2 {
-    color: #333;
+    color: #fff;
     text-align: center;
     margin-top: 20px;
   }
@@ -74,7 +73,7 @@ body {
     padding: 20px;
     border: 1px solid #ddd;
     border-radius: 8px;
-    background-color: #f9f9f9;
+    background-color: #0f1724;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     text-align: center;
   }
@@ -118,7 +117,7 @@ body {
     max-width: 400px;
     margin: 50px auto;
     padding: 20px;
-    background: #f9f9f9;
+    background: #1c2036;
     border-radius: 10px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     text-align: center;
@@ -139,6 +138,8 @@ body {
     font-size: 16px;
     border: 1px solid #ddd;
     border-radius: 5px;
+    width: 348px;
+
   }
   
   .reset-password-container button {
